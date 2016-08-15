@@ -14,14 +14,14 @@ library and is based on the following work:
 
 This code is tested on Linux using matconvnet v1.0-beta20 and cuDNN 5
 
-### Testing pre-trained model on PASCAL VOC and MS COCO data on PASCAL VOC validation data
+### Testing pre-trained model on PASCAL VOC validation data
 Download [pre-trained models](http://www.ics.uci.edu/~gghiasi/papers/LRR/models.tar.gz) and
 extract it into models directory.
 
 Specify matconvnet path in "LRRTestOnPascal.m" and execute it.
 
 ### Training LRR
-comming soon
+coming soon
 
 ### Issues, Questions,  etc
 Please contact "gghiasi @ ics.uci.edu"
