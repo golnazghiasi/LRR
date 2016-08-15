@@ -7,7 +7,7 @@ addpath(fullfile(path_to_matconvnet, 'examples'));
 addpath 'prepareData/'
 
 % Experiment and data paths
-opts.expDir = fullfile('models/LLR4x-VGG16-coco-pascal/');
+opts.expDir = fullfile('models/LRR4x-VGG16-coco-pascal/');
 opts.vocEdition = '11';
 opts.dataDir = ['data/voc' opts.vocEdition];
 opts.archiveDir = 'data/archives';
