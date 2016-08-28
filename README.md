@@ -5,8 +5,8 @@ This repository contains code and models for the method described in:
 Refinement for Semantic Segmentation", ECCV 2016](http://arxiv.org/abs/1605.02264)
 
 
-This library is written in Matlab, it uses [Matconvnet](https://github.com/vlfeat/matconvnet)
-library and is based on the following work:
+The code is written in Matlab, it uses [Matconvnet](https://github.com/vlfeat/matconvnet)
+library and is based on the following repository:
 
 * [matconvnet-fcn](https://github.com/vlfeat/matconvnet-fcn)
 
@@ -20,8 +20,8 @@ extract it into models directory.
 
 Specify matconvnet path in "LRRTestOnPascal.m" and execute it.
 
-### Training LRR
-coming soon
+### Training LRR on PASCAL VOC training data
+Run "LRR4xTrainVGG16Pascal.m"
 
 ### Issues, Questions,  etc
 Please contact "gghiasi @ ics.uci.edu"
