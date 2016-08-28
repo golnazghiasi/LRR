@@ -4,7 +4,9 @@ path_to_matconvnet = '../matconvnet-1.0-beta20/';
 fprintf('path to matconvnet library: %s\n', path_to_matconvnet);
 run(fullfile(path_to_matconvnet, 'matlab/vl_setupnn.m'));
 addpath(fullfile(path_to_matconvnet, 'examples'));
-addpath 'prepareData/'
+addpath modelInitialization;
+addpath prepareData;
+addpath util;
 
 % Experiment and data paths
 opts.expDir = fullfile('models/LRR4x-VGG16-coco-pascal/');
@@ -16,7 +18,7 @@ opts.image_set = 2;
 opts.imdbPath = fullfile(opts.expDir, ['imdb' '.mat']) ;
 opts.vocAdditionalSegmentations = true;
 opts.vocAdditionalSegmentationsMergeMode = 2 ;
-opts.gpus = [];
+opts.gpus = [2];
 % Use 0 to not visualize any segmentation predictions.
 opts.max_visualize = 10;
 opts.resize_fractions = [0.6 0.8 1];
