@@ -100,8 +100,14 @@ for i = 1 : numel(images)
         end
         
         anno_de_save_path = anno_de_path_fn(images(i), img_scaled_size(1), img_sz(1), gt_resizes(ri), opts.strelRad(ri));
-		if exist(anno_de_save_path, 'file') && opts.imageSize(1) ~=0
+        if exist(anno_de_save_path, 'file') && opts.imageSize(1) ~=0
             load(anno_de_save_path, 'mask_r', 'mask_dr', 'mask_er');
+            if flip_it
+                mask_r = fliplr(mask_r);
+                mask_dr = fliplr(mask_dr);
+                mask_er = fliplr(mask_er);
+            end
+            
         else
             %disp(anno_de_save_path);
             mask_r = imresize(anno_, 1/gt_resizes(ri), 'nearest');
@@ -110,11 +116,6 @@ for i = 1 : numel(images)
                 mask_dr = imresize(mask_d, 1/gt_resizes(ri), 'nearest');
                 mask_er = imresize(mask_e, 1/gt_resizes(ri), 'nearest');
             end
-        end
-        if flip_it
-            mask_r = fliplr(mask_r);
-            mask_dr = fliplr(mask_dr);
-            mask_er = fliplr(mask_er);
         end
         labels_ds{ri}(:, :, 1, i) = mask_r;
         if length(strel_rads) >= ri
