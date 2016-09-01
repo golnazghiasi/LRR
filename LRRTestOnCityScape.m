@@ -1,4 +1,4 @@
-function info = LRRTestOnPascal()
+function info = LRRTestOnCityScape()
 
 path_to_matconvnet = '../matconvnet-1.0-beta20/';
 fprintf('path to matconvnet library: %s\n', path_to_matconvnet);
@@ -9,49 +9,31 @@ addpath prepareData;
 addpath util;
 
 % Experiment and data paths
-opts.expDir = fullfile('models/LRR4x-VGG16-coco-pascal/');
-opts.vocEdition = '11';
-opts.dataDir = ['data/voc' opts.vocEdition];
-opts.archiveDir = 'data/archives';
+opts.expDir = fullfile('models/LRR4x-VGG16-CityScapes-coarse-and-fine/');
+opts.dataDir = 'data/CityScapes/' ;
+opts.includeCoarseData = 0;
 opts.modelPath = fullfile(opts.expDir , ['model.mat']);
 opts.image_set = 2;
 opts.imdbPath = fullfile(opts.expDir, ['imdb' '.mat']) ;
-opts.vocAdditionalSegmentations = true;
-opts.vocAdditionalSegmentationsMergeMode = 2 ;
 opts.gpus = [];
 % Use 0 to not visualize any segmentation predictions.
 opts.max_visualize = 10;
-opts.resize_fractions = [0.6 0.8 1];
-%resize_fractions = [1];
+opts.resize_fractions = [1];
 
 % -------------------------------------------------------------------------
 % Setups data
 % -------------------------------------------------------------------------
 
-% Gets PASCAL VOC 11/12 segmentation dataset plus Berkeley's additional
-% segmentations
+% Gets CityScape dataset.
 if exist(opts.imdbPath, 'file')
     imdb = load(opts.imdbPath) ;
 else
-    imdb = vocSetup('dataDir', opts.dataDir, ...
-        'archiveDir', opts.archiveDir, ...
-        'edition', opts.vocEdition, ...
-        'includeTest', false, ...
-        'includeSegmentation', true, ...
-        'includeDetection', false) ;
-    if opts.vocAdditionalSegmentations
-        imdb = vocSetupAdditionalSegmentations(imdb, 'dataDir', ...
-            opts.dataDir, 'archiveDir', opts.archiveDir);
-    end
-    if ~exist(opts.expDir, 'dir')
-        mkdir(opts.expDir);
-    end
-    imdb.classes.name = ['background' imdb.classes.name];
+    imdb = CityScapeSetup(opts.dataDir, opts.includeCoarseData);
     save(opts.imdbPath, '-struct', 'imdb') ;
 end
 
-% Gets validation subset
-val = find(imdb.images.set == 2 & imdb.images.segmentation) ;
+% Gets validation subset.
+val = find(imdb.images.set == 2) ;
 fprintf('Number of validation data: %d\n', length(val));
 
 % -------------------------------------------------------------------------
@@ -111,19 +93,38 @@ if ~isempty(opts.gpus)
     net.move('gpu') ;
 end
 
-num_classes = length(imdb.classes.name);
-confusion = cell(1, length(prob_var_ids) + 1);
-confusion(:) = {zeros(num_classes)};
+% Runs model on two sub-parts of the image with overlap and
+% then combines their results.
+im_parts(1).r1 = 0;
+im_parts(1).r2 = 1;
+im_parts(1).c1 = 0;
+im_parts(1).c2 = 1/2 + 1/8;
+
+im_parts(2).r1 = 0;
+im_parts(2).r2 = 1;
+im_parts(2).c1 = 1/2 - 1/8;
+im_parts(2).c2 = 1;
+%disp(im_parts);
+
+confusion = cell(1, length(prob_var_ids));
+confusion(:) = {zeros(imdb.num_classes)};
+imgs = imdb.images;
 
 for i = 1 : numel(val)
     fprintf('%d/%d\t', i, numel(val));
+    img_i = val(i) ;
+    name = imdb.images.name{img_i};
+    
+    labelsPath = sprintf(imdb.anno_path, imgs.type{img_i}, imdb.sets.name{imgs.set(img_i)}, imgs.city{img_i}, imgs.filename{img_i});
+    rgbPath = sprintf(imdb.img_path, imdb.sets.name{imgs.set(img_i)}, imgs.city{img_i}, imgs.name{img_i});
     
     % Loads an image and its gt segmentation.
-    name = imdb.images.name{val(i)};
-    rgb = imread(fullfile(sprintf(imdb.paths.image, name)));
-    anno = imread(fullfile(sprintf(imdb.paths.classSegmentation, name))) ;
-    orig_lb = single(anno) ;
-    lb = mod(orig_lb + 1, 256) ; % 0 = ignore, 1 = bkg
+    rgb = imread(rgbPath);
+    anno = imread(labelsPath) ;
+    
+    anno_tid = double(imdb.classes.trainid(anno+1));
+    anno = single(mod(anno_tid + 1, 256)); % 0: don't care
+    lb = single(anno) ;
     
     % Subtracts the mean (color).
     im = bsxfun(@minus, single(rgb), net.meta.normalization.averageImage) ;
@@ -139,12 +140,12 @@ for i = 1 : numel(val)
         if ~isempty(opts.gpus)
             net_input = gpuArray(net_input);
         end
-        
-        net.eval({inputVar, net_input});
+        prob_maps_ =  EvalPartsOfImage(net, net_input, im_parts, inputVar, prob_var_ids);
+        %net.eval({inputVar, net_input});
         
         prob_maps = {};
         for k = 1 : length(prob_var_ids)
-            prob_maps_k = gather(net.vars(prob_var_ids(k)).value) ;
+            prob_maps_k = prob_maps_{k}; %gather(net.vars(prob_var_ids(k)).value) ;
             prob_maps{k} = back2ImageSize(prob_maps_k, size(net_input), ...
                 size(im), rinds, cinds);
             
@@ -164,20 +165,20 @@ for i = 1 : numel(val)
     for pind = 1 : length(prob_var_ids)
         [~, preds_pind] = max(prob_maps{pind}, [], 3);
         confusion{pind} = confusion{pind} + ...
-            accumarray([lb(ok), preds_pind(ok)], 1, [num_classes num_classes]) ;
+            accumarray([lb(ok), preds_pind(ok)], 1, [imdb.num_classes imdb.num_classes]) ;
         segmentation_predictions{pind} = preds_pind;
     end
     
     % Computes multi scale segmentation prediction for the main output of
     % the network (4x).
-    [~, ms_preds] = max(multi_scale_res, [], 3);
-    confusion{end} = confusion{end} + ...
-        accumarray([lb(ok), ms_preds(ok)], 1, [num_classes num_classes]) ;
+    %[~, ms_preds] = max(multi_scale_res, [], 3);
+    %confusion{end} = confusion{end} + ...
+    %    accumarray([lb(ok), ms_preds(ok)], 1, [imdb.num_classes imdb.num_classes]) ;
     
     % Visualizes prediction results.
     if i < opts.max_visualize
-        showGroundtruth(rgb, orig_lb);
-        visualizePredictions(segmentation_predictions, upnames, ms_preds);
+        showGroundtruth(rgb, lb);
+        visualizePredictions(segmentation_predictions, upnames);
     end
     
 end
@@ -187,11 +188,7 @@ end
 % -------------------------------------------------------------------------
 for pind = 1 : length(confusion)
     fprintf('-----------------------------------------------------------');
-    if pind == length(confusion)
-        fprintf('\n4x %s\n', 'multi-scale');
-    else
-        fprintf('\n%s\n', upnames{pind});
-    end
+    fprintf('\n%s\n', upnames{pind});
     clear info;
     [info.iu, info.miu, info.pacc, info.macc] = ...
         getAccuracies(confusion{pind});
@@ -258,13 +255,15 @@ cinds = cb:cb-1+size(im,2);
 % -------------------------------------------------------------------------
 function visualizePredictions(segmentation_predictions, prob_var_names, ms_pred)
 % -------------------------------------------------------------------------
-cmap = PascalLabelColors();
+cmap = CityScapeLabelColors();
 for k = 1 : length(prob_var_names)
-    figure(k + 2); clf; image(segmentation_predictions{k}); colormap(cmap);
+    figure(k + 2); clf; image(uint8(segmentation_predictions{k})); colormap(cmap);
     axis 'image'; axis 'off'; title(prob_var_names{k});
 end
-figure(k + 3); clf; image(ms_pred); colormap(cmap);
-axis 'image'; axis 'off'; title('multi-scale (4x)');
+if exist('ms_pred', 'var')
+    figure(k + 3); clf; image(uint8(ms_pred)); colormap(cmap);
+    axis 'image'; axis 'off'; title('multi-scale (4x)');
+end
 disp('Press any key to continue');
 pause;
 
@@ -272,24 +271,46 @@ pause;
 function showGroundtruth(rgb, lb, save_dir)
 % -------------------------------------------------------------------------
 figure(1); image(rgb); axis 'image'; axis 'off';
-figure(2); image(lb+1); colormap(PascalLabelColors());
+figure(2); image(uint8(lb)); colormap(CityScapeLabelColors());
 title('ground-truth'); axis 'image'; axis 'off';
 
-% -------------------------------------------------------------------------
-function cmap = PascalLabelColors()
-% -------------------------------------------------------------------------
-N = 21;
-cmap = zeros(N, 3);
-for i = 1 : N
-    id = i - 1; r = 0; g = 0; b = 0;
-    for j=0:7
-        r = bitor(r, bitshift(bitget(id,1),7 - j));
-        g = bitor(g, bitshift(bitget(id,2),7 - j));
-        b = bitor(b, bitshift(bitget(id,3),7 - j));
-        id = bitshift(id,-3);
+function [prob_maps] =  EvalPartsOfImage(net, im, im_parts, inputVar, probVars);
+for i = 1 : length(im_parts)
+    rs = 1 + im_parts(i).r1 * size(im, 1) : im_parts(i).r2 * size(im, 1);
+    cs = 1 + im_parts(i).c1 * size(im, 2) : im_parts(i).c2 * size(im, 2);
+    im_ = im(rs, cs, :);
+    net.eval({inputVar, im_});
+    
+    for k = 1 : length(probVars)
+        prob_maps_ = gather(net.vars(probVars(k)).value) ;
+        sz = [size(im, 1), size(im, 2)] * size(prob_maps_, 1) / size(im, 1);
+        assert(size(prob_maps_, 3) == 19);
+        sz(3) = size(prob_maps_, 3);
+        rs = 1 + im_parts(i).r1 * sz(1) : im_parts(i).r2 * sz(1);
+        cs = 1 + im_parts(i).c1 * sz(2) : im_parts(i).c2 * sz(2);
+        if i == 1
+            score_maps{k} = zeros(sz);
+            prob_maps{k} = zeros(sz);
+            score_maps_n{k} = zeros(sz);
+            prob_maps_n{k} = zeros(sz);
+        end
+        
+        b_cs = 1;
+        e_cs = sz(2);
+        b_cs_ = 1;
+        e_cs_ = size(prob_maps_, 2);
+        if cs(1) > 1 + eps
+            nrem = length(cs) / 8;
+            b_cs = 1 + im_parts(i).c1 * sz(2)  + nrem;
+            b_cs_ = 1 + nrem;
+        end
+        if cs(end) < sz(2)
+            nrem = length(cs) / 8;
+            e_cs = im_parts(i).c2 * sz(2) - nrem;
+            e_cs_ = size(prob_maps_, 2) - nrem;
+        end
+        cs_nborder = b_cs : e_cs;
+        prob_maps{k}(rs, cs_nborder, :) =  max(prob_maps{k}(rs, cs_nborder, :), ...
+            prob_maps_(:, b_cs_ : e_cs_, 1:19));
     end
-    cmap(i,1)=r; cmap(i,2)=g; cmap(i,3)=b;
 end
-cmap(end + 1, :) = [255 255 255];
-cmap = cmap / 255;
-

@@ -14,14 +14,21 @@ library and is based on the following repository:
 
 This code is tested on Linux using matconvnet v1.0-beta20 and cuDNN 5
 
-### Testing pre-trained model on PASCAL VOC validation data
+### Testing pre-trained models
 Download [pre-trained models](http://www.ics.uci.edu/~gghiasi/papers/LRR/models.tar.gz) and
 extract it into models directory.
 
+#### Testing pre-trained model on PASCAL VOC validation data
 Specify matconvnet path in "LRRTestOnPascal.m" and execute it.
 
+#### Testing pre-trained model on Cityscape validation data
+Download "gtFine_trainvaltest.zip" and "leftImg8bit_trainvaltest.zip" from
+[Cityscapes dataset website](https://www.cityscapes-dataset.com/downloads/), unzip
+them. Specify their path ("opts.dataDir") and matconvnet path ("path_to_matconvnet")
+in "LRRTestOnCityScape.m" and execute it.
+
 ### Training LRR on PASCAL VOC training data
-Run "LRR4xTrainVGG16Pascal.m"
+Specify matconvnet path in "LRR4xTrainVGG16Pascal.m" and execute it.
 
 ### Issues, Questions,  etc
 Please contact "gghiasi @ ics.uci.edu"
