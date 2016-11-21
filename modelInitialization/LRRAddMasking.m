@@ -18,14 +18,14 @@ net.addLayer(['prob_dilate_' pre_up_name], dagnn.Pooling('stride', [1 1], 'poolS
     'pad', [pad_size, pad_size, pad_size, pad_size]), ['prob_' pre_up_name], ['prob_' pre_up_name '_dilate'], {});
 
 % Dilation of negative of class probabilities
-net.addLayer(['neg_prob_' pre_up_name], dagnn.Neg(), ['prob_' pre_up_name], ['neg_prob_' pre_up_name], {});
+net.addLayer(['neg_prob_' pre_up_name], Neg(), ['prob_' pre_up_name], ['neg_prob_' pre_up_name], {});
 ['neg_prob_' pre_up_name]
 net.addLayer(['neg_prob_dilate_' pre_up_name], dagnn.Pooling('stride', [1 1], 'poolSize', [pool_size pool_size], ...
     'pad', [pad_size, pad_size, pad_size, pad_size]), ['neg_prob_' pre_up_name], ['neg_prob_' pre_up_name '_dilate'], {});
 
 % Sum of two dilation
 net.addLayer(['bound_mask' pre_up_name], dagnn.Sum(), {['prob_' pre_up_name '_dilate'], ['neg_prob_' pre_up_name '_dilate']}, ['bound_mask' pre_up_name]) ;
-net.addLayer(['dot_prod_' up_name], dagnn.DotProduct(), {['bound_mask' pre_up_name], ['prediction_' up_name '_add']}, ['pred_' up_name '_aft_DP']) ;
+net.addLayer(['dot_prod_' up_name], DotProduct(), {['bound_mask' pre_up_name], ['prediction_' up_name '_add']}, ['pred_' up_name '_aft_DP']) ;
 net.setLayerInputs(['sum' up_name], {['prediction_' pre_up_name post_name], ['pred_' up_name '_aft_DP']});
 
 
