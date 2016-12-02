@@ -15,7 +15,7 @@ library and is based on the following repository:
 This code is tested on Linux using matconvnet v1.0-beta20 and cuDNN 5
 
 ### Testing pre-trained models
-Download [pre-trained models](http://www.ics.uci.edu/~gghiasi/papers/LRR/models.tar.gz) and
+Download [pre-trained models](http://vision.ics.uci.edu/datasets/LRR_models.tar.gz) and
 extract it into models directory.
 
 #### Testing pre-trained model on PASCAL VOC validation data
